@@ -356,9 +356,126 @@ class DBUpdater:
             if BS4 is not None:
                 self.replace_into_krx_balance_sheet_db(BS4)
 
+    def getCashFlow(self, code, rpt_type, freq):
+        """[FnGuide] 공시기업의 최근 3개 연간 및 4개 분기 현금흐름표를 수집하는 함수
+
+        Parameters
+        ==========
+        code: str, 종목코드
+        rpt_type: str, 재무제표 종류
+            'Consolidated'(연결), 'Unconsolidated'(별도)
+        freq: str, 연간 및 분기보고서
+            'A'(연간), 'Q'(분기)
+        """
+
+        items_en = [
+            'cfo', 'cfo1', 'cfo2', 'cfo3', 'cfo4', 'cfo5', 'cfo6', 'cfo7',
+            'cfi', 'cfi1', 'cfi2', 'cfi3', 'cff', 'cff1', 'cff2', 'cff3',
+            'cff4', 'cff5', 'cff6', 'cff7', 'cff8', 'cff9'
+        ]
+
+        if rpt_type.upper() == 'CONSOLIDATED':
+            # 연결 연간 현금흐름표(ReportGB=D)
+            url = "https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp?pGB=1&gicode=A{}&cID=&MenuYn=Y&ReportGB=D" \
+                  "&NewMenuID=103&stkGb=701".format(code)
+
+        else:
+            # 별도 연간 현금흐름표(ReportGB=B)
+            url = "https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp?pGB=1&gicode=A{}&cID=&MenuYn=Y&ReportGB=B" \
+                  "&NewMenuID=103&stkGb=701".format(code)
+            items_en = [item for item in items_en if item not in ['equity1', 'equity8']]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/101.0.4951.54 Safari/537.36"
+        }
+        req = Request(url=url, headers=headers)
+        html = urlopen(req).read()
+        soup = BeautifulSoup(html, 'html.parser')
+
+        if freq.upper() == 'A':  # 연간 현금흐름표 영역 추출
+            cf_a = soup.find(id='divCashY')
+            num_col = 3  # 최근 3개 연간 데이터
+        else:  # 분기 현금흐름표 영역 추출 freq.upper() == 'Q'
+            cf_a = soup.find(id='divCashQ')
+            num_col = 4  # 최근 4개 분기 데이터
+
+        if cf_a is None:
+            return None
+        cf_a = cf_a.find_all(['tr'])
+
+        items_kr = [cf_a[m].find(['th']).get_text().replace('\n', '').replace('\xa0', '').replace('계산에 참여한 계정 펼치기', '')
+                    for m in range(1, len(cf_a))]
+        period = [cf_a[0].find_all('th')[n].get_text() for n in range(1, num_col + 1)]
+
+        # 수집할 인덱스 값 미리 설정함
+        idx = [1, 2, 3, 4, 39, 70, 75, 76, 84, 85, 99, 113, 121, 122, 134, 145, 153, 154, 155, 156, 157, 158]
+        for item, i in zip(items_en, idx):
+            temps = []
+            for j in range(0, num_col):
+                temp = [float(cf_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', ''))
+                        if cf_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', '') != ''
+                        else (0 if cf_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', '') == '-0'
+                        else 0)]
+                temps.append(temp[0])
+            globals()[item] = temps
+
+        cf_domestic = pd.DataFrame({'stock_code': code, 'period': period,
+                                    'CFO_Total': globals()['cfo'], 'Net_Income_Total': globals()['cfo1'],
+                                    'Cont_Biz_Before_Tax': globals()['cfo2'], 'Add_Exp_WO_CF_Out': globals()['cfo3'],
+                                    'Ded_Rev_WO_CF_In': globals()['cfo4'], 'Chg_Working_Capital': globals()['cfo5'],
+                                    'CFO': globals()['cfo6'], 'Other_CFO': globals()['cfo7'],
+                                    'CFI_Total': globals()['cfi'], 'CFI_In': globals()['cfi1'],
+                                    'CFI_Out': globals()['cfi2'], 'Other_CFI': globals()['cfi3'],
+                                    'CFF_Total': globals()['cff'], 'CFF_In': globals()['cff1'],
+                                    'CFF_Out': globals()['cff2'], 'Other_CFF': globals()['cff3'],
+                                    'Other_CF': globals()['cff4'], 'Chg_CF_Consolidation': globals()['cff5'],
+                                    'Forex_Effect': globals()['cff6'],
+                                    'Chg_Cash_and_Cash_Equivalents': globals()['cff7'],
+                                    'Cash_and_Cash_Equivalents_Beg': globals()['cff8'],
+                                    'Cash_and_Cash_Equivalents_End': globals()['cff9']
+                                    })
+        cf_domestic['rpt_type'] = rpt_type + '_' + freq.upper()
+        cf_domestic.fillna('null', inplace=True)
+
+        return cf_domestic
+
+    def replace_into_krx_cash_flow_db(self, CF):
+        try:
+            with self.engine.connect() as conn:
+                for r in CF.itertuples():
+                    sql = f"REPLACE INTO krx_cash_flow VALUES " \
+                          f"('{r.stock_code}', '{r.period}', {r.assets_total}, {r.current_assets_total}," \
+                          f"{r.lt_assets_total}, {r.other_fin_assets}, {r.liabilities_total}, {r.current_liab_total}," \
+                          f"{r.lt_liab_total}, {r.other_fin_liab_total}, {r.equity_fin_liab_total}, {r.equity_total}," \
+                          f"{r.paid_in_capital}, {r.contingent_convertible_bonds}, {r.capital_surplus}, {r.other_equity}," \
+                          f"{r.accum_other_comprehensive_income}, {r.retained_earnings}, {r.rpt_type} )"
+                    conn.execute(sql)
+                    print(f"[#{r.stock_code}] Update [{r.rpt_type}] Cash Flow [{r.period}] Successfully!")
+        except Exception as e:
+            print("Exception occured : ", str(e))
+            return None
+
+    def update_cash_flow(self):
+        stock = self.read_all_stock()
+        for idx in range(len(stock)):
+            code = stock['code'].values[idx]
+            CF1 = self.getCashFlow(code, 'Consolidated', 'A')  # 연결 연간
+            if CF1 is not None:
+                self.replace_into_krx_cash_flow_db(CF1)
+            CF2 = self.getCashFlow(code, 'Unconsolidated', 'A')  # 별도 연간
+            if CF2 is not None:
+                self.replace_into_krx_cash_flow_db(CF2)
+            CF3 = self.getCashFlow(code, 'Consolidated', 'Q')  # 연결 분기
+            if CF3 is not None:
+                self.replace_into_krx_cash_flow_db(CF3)
+            CF4 = self.getCashFlow(code, 'Unconsolidated', 'Q')  # 별도 분기
+            if CF4 is not None:
+                self.replace_into_krx_cash_flow_db(CF4)
+
 
 if __name__ == '__main__':
     dbu = DBUpdater()
     # dbu.update_income_statement()
-    dbu.update_balance_sheet()
-
+    # dbu.update_balance_sheet()
+    dbu.update_cash_flow()
