@@ -39,3 +39,25 @@ CREATE TABLE IF NOT EXISTS krx_income_statement (
     net_income_noncontrolling FLOAT,
     rpt_type VARCHAR(20)
 );
+
+CREATE TABLE IF NOT EXISTS krx_balance_sheet (
+    stock_code VARCHAR(10),
+    period VARCHAR(20),
+    assets_total FLOAT,
+    current_assets_total FLOAT,
+    lt_assets_total FLOAT,
+    other_fin_assets FLOAT,
+    liabilities_total FLOAT,
+    current_liab_total FLOAT,
+    lt_liab_total FLOAT,
+    other_fin_liab_total FLOAT,
+    equity_fin_liab_total FLOAT,
+    equity_total FLOAT,
+    paid_in_capital FLOAT,
+    contingent_convertible_bonds FLOAT,
+    capital_surplus FLOAT,
+    other_equity FLOAT,
+    accum_other_comprehensive_income FLOAT,
+    retained_earnings FLOAT,
+    rpt_type VARCHAR(20)
+);

@@ -95,7 +95,7 @@ class DBUpdater:
         """[FnGuide] 공시기업의 최근 4개 연간 및 4개 분기 손익계산서를 수집하는 함수
         Parameters
         ==========
-        stock_code: str, 종목코드
+        code: str, 종목코드
         rpt_type: str, 재무제표 종류
             'Consolidated'(연결), 'Unconsolidated'(별도)
         freq: str, 연간 및 분기보고서
@@ -228,7 +228,137 @@ class DBUpdater:
             if IS4 is not None:
                 self.replace_into_krx_income_statement_db(IS4)
 
+    def getBalanceSheet(self, code, rpt_type, freq):
+        """[FnGuide] 공시기업의 최근 3개 연간 및 4개 분기 재무상태표를 수집하는 함수
+
+        Parameters
+        ==========
+        code: str, 종목코드
+        rpt_type: str, 재무제표 종류
+            'Consolidated'(연결), 'Unconsolidated'(별도)
+        freq: str, 연간 및 분기보고서
+            'A'(연간), 'Q'(분기)
+        """
+
+        items_en = [
+            'assets', 'curassets', 'curassets1', 'curassets2', 'curassets3', 'curassets4', 'curassets5',
+            'curassets6',
+            'curassets7', 'curassets8', 'curassets9', 'curassets10', 'curassets11',
+            'ltassets', 'ltassets1', 'ltassets2', 'ltassets3', 'ltassets4', 'ltassets5', 'ltassets6', 'ltassets7',
+            'ltassets8', 'ltassets9', 'ltassets10', 'ltassets11', 'ltassets12', 'ltassets13', 'finassets',
+            'liab', 'curliab', 'curliab1', 'curliab2', 'curliab3', 'curliab4', 'curliab5',
+            'curliab6', 'curliab7', 'curliab8', 'curliab9', 'curliab10', 'curliab11', 'curliab12', 'curliab13',
+            'ltliab', 'ltliab1', 'ltliab2', 'ltliab3', 'ltliab4', 'ltliab5', 'ltliab6',
+            'ltliab7', 'ltliab8', 'ltliab9', 'ltliab10', 'ltliab11', 'ltliab12', 'finliab',
+            'equity', 'equity1', 'equity2', 'equity3', 'equity4', 'equity5', 'equity6', 'equity7', 'equity8'
+        ]
+
+        if rpt_type.upper() == 'CONSOLIDATED':
+            # 연결 연간 재무상태표(ReportGB=D)
+            url = "https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp?pGB=1&gicode=A{}&cID=&MenuYn=Y&ReportGB=D" \
+                  "&NewMenuID=103&stkGb=701".format(code)
+
+        else:
+            # 별도 연간 재무상태표(ReportGB=B)
+            url = "https://comp.fnguide.com/SVO2/ASP/SVD_Finance.asp?pGB=1&gicode=A{}&cID=&MenuYn=Y&ReportGB=B" \
+                  "&NewMenuID=103&stkGb=701".format(code)
+            items_en = [item for item in items_en if item not in ['equity1', 'equity8']]
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/101.0.4951.54 Safari/537.36"
+        }
+        req = Request(url=url, headers=headers)
+        html = urlopen(req).read()
+        soup = BeautifulSoup(html, 'html.parser')
+
+        if freq.upper() == 'A':  # 연간 재무상태표 영역 추출
+            bs_a = soup.find(id='divDaechaY')
+            num_col = 3  # 최근 3개 연간 데이터
+        else:  # 분기 재무상태표 영역 추출 freq.upper() == 'Q'
+            bs_a = soup.find(id='divDaechaQ')
+            num_col = 4  # 최근 4개 분기 데이터
+
+        if bs_a is None:
+            return None
+        bs_a = bs_a.find_all(['tr'])
+
+        items_kr = [
+            bs_a[m].find(['th']).get_text().replace('\n', '').replace('\xa0', '').replace('계산에 참여한 계정 펼치기', '')
+            for m in range(1, len(bs_a))]
+        period = [bs_a[0].find_all('th')[n].get_text() for n in range(1, num_col + 1)]
+
+        if len(items_en) != len(bs_a) - 1:
+            return None
+
+        for item, i in zip(items_en, range(1, len(bs_a))):
+            temps = []
+            for j in range(0, num_col):
+                temp = [float(bs_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', ''))
+                        if bs_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', '') != ''
+                        else (0 if bs_a[i].find_all('td')[j]['title'].replace(',', '').replace('\xa0', '') == '-0'
+                        else 0)]
+                temps.append(temp[0])
+            globals()[item] = temps
+
+        # 지배/비지배 항목 처리
+        if rpt_type.upper() == 'CONSOLIDATED':  # 연결 연간 재무상태표는 아무 것도 하지 않음
+            pass
+        else:  # 별도 연간 재무상태표 해당 항목을 Null값으로 채움
+            globals()['equity1'], globals()['equity8'] = [np.NaN] * num_col, [np.NaN] * num_col
+
+        bs_domestic = pd.DataFrame({'stock_code': code, 'period': period,
+                                    'Assets_Total': globals()['assets'], 'Current_Assets_Total': globals()['curassets'],
+                                    'LT_Assets_Total': globals()['ltassets'], 'Other_Fin_Assets': globals()['finassets'],
+                                    'Liabilities_Total': globals()['liab'], 'Current_Liab_Total': globals()['curliab'],
+                                    'LT_Liab_Total': globals()['ltliab'], 'Other_Fin_Liab_Total': globals()['finliab'],
+                                    'Equity_Total': globals()['equity'], 'Paid_In_Capital': globals()['equity2'],
+                                    'Contingent_Convertible_Bonds': globals()['equity3'],
+                                    'Capital_Surplus': globals()['equity4'], 'Other_Equity': globals()['equity5'],
+                                    'Accum_Other_Comprehensive_Income': globals()['equity6'],
+                                    'Retained_Earnings': globals()['equity7']
+                                    })
+        bs_domestic['rpt_type'] = rpt_type + '_' + freq.upper()
+        bs_domestic.fillna('null', inplace=True)
+
+        return bs_domestic
+
+    def replace_into_krx_balance_sheet_db(self, BS):
+        try:
+            with self.engine.connect() as conn:
+                for r in BS.itertuples():
+                    sql = f"REPLACE INTO krx_balance_sheet VALUES " \
+                          f"('{r.stock_code}', '{r.period}', {r.assets_total}, {r.current_assets_total}," \
+                          f"{r.lt_assets_total}, {r.other_fin_assets}, {r.liabilities_total}, {r.current_liab_total}," \
+                          f"{r.lt_liab_total}, {r.other_fin_liab_total}, {r.equity_fin_liab_total}, {r.equity_total}," \
+                          f"{r.paid_in_capital}, {r.contingent_convertible_bonds}, {r.capital_surplus}, {r.other_equity}," \
+                          f"{r.accum_other_comprehensive_income}, {r.retained_earnings}, {r.rpt_type} )"
+                    conn.execute(sql)
+                    print(f"[#{r.stock_code}] Update [{r.rpt_type}] Balance Sheet [{r.period}] Successfully!")
+        except Exception as e:
+            print("Exception occured : ", str(e))
+            return None
+
+    def update_balance_sheet(self):
+        stock = self.read_all_stock()
+        for idx in range(len(stock)):
+            code = stock['code'].values[idx]
+            BS1 = self.getBalanceSheet(code, 'Consolidated', 'A')  # 연결 연간
+            if BS1 is not None:
+                self.replace_into_krx_balance_sheet_db(BS1)
+            BS2 = self.getBalanceSheet(code, 'Unconsolidated', 'A')  # 별도 연간
+            if BS2 is not None:
+                self.replace_into_krx_balance_sheet_db(BS2)
+            BS3 = self.getBalanceSheet(code, 'Consolidated', 'Q')  # 연결 분기
+            if BS3 is not None:
+                self.replace_into_krx_balance_sheet_db(BS3)
+            BS4 = self.getBalanceSheet(code, 'Unconsolidated', 'Q')  # 별도 분기
+            if BS4 is not None:
+                self.replace_into_krx_balance_sheet_db(BS4)
+
 
 if __name__ == '__main__':
     dbu = DBUpdater()
-    dbu.update_income_statement()
+    # dbu.update_income_statement()
+    dbu.update_balance_sheet()
+
