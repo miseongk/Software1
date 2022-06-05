@@ -6,3 +6,4 @@
     pip install sqlalchemy
     pip install lxml
     pip install finance-datareader
+    pip install beautifulsoup4
