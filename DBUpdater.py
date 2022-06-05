@@ -467,7 +467,7 @@ class DBUpdater:
     def update_cash_flow(self):
         """모든 종목의 현금흐름표 업데이트"""
         stock = self.read_all_stock()
-        for idx in range(1417, len(stock)):
+        for idx in range(len(stock)):
             code = stock['code'].values[idx]
             CF1 = self.getCashFlow(code, 'Consolidated', 'A')  # 연결 연간
             if CF1 is not None:
