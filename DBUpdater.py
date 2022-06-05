@@ -195,6 +195,7 @@ class DBUpdater:
         return is_domestic
 
     def replace_into_krx_income_statement_db(self, IS):
+        """손익계산서 DB에 업데이트"""
         try:
             with self.engine.connect() as conn:
                 for r in IS.itertuples():
@@ -212,6 +213,7 @@ class DBUpdater:
             return None
 
     def update_income_statement(self):
+        """모든 종목의 손익계산서 업데이트"""
         stock = self.read_all_stock()
         for idx in range(len(stock)):
             code = stock['code'].values[idx]
@@ -324,15 +326,16 @@ class DBUpdater:
         return bs_domestic
 
     def replace_into_krx_balance_sheet_db(self, BS):
+        """재무상태표 DB에 업데이트"""
         try:
             with self.engine.connect() as conn:
                 for r in BS.itertuples():
                     sql = f"REPLACE INTO krx_balance_sheet VALUES " \
-                          f"('{r.stock_code}', '{r.period}', {r.assets_total}, {r.current_assets_total}," \
-                          f"{r.lt_assets_total}, {r.other_fin_assets}, {r.liabilities_total}, {r.current_liab_total}," \
-                          f"{r.lt_liab_total}, {r.other_fin_liab_total}, {r.equity_fin_liab_total}, {r.equity_total}," \
-                          f"{r.paid_in_capital}, {r.contingent_convertible_bonds}, {r.capital_surplus}, {r.other_equity}," \
-                          f"{r.accum_other_comprehensive_income}, {r.retained_earnings}, {r.rpt_type} )"
+                          f"('{r.stock_code}', '{r.period}', {r.Assets_Total}, {r.Current_Assets_Total}," \
+                          f"{r.LT_Assets_Total}, {r.Other_Fin_Assets}, {r.Liabilities_Total}, {r.Current_Liab_Total}," \
+                          f"{r.LT_Liab_Total}, {r.Other_Fin_Liab_Total}, {r.Equity_Total}," \
+                          f"{r.Paid_In_Capital}, {r.Contingent_Convertible_Bonds}, {r.Capital_Surplus}, {r.Other_Equity}," \
+                          f"{r.Accum_Other_Comprehensive_Income}, {r.Retained_Earnings}, '{r.rpt_type}' )"
                     conn.execute(sql)
                     print(f"[#{r.stock_code}] Update [{r.rpt_type}] Balance Sheet [{r.period}] Successfully!")
         except Exception as e:
@@ -340,6 +343,7 @@ class DBUpdater:
             return None
 
     def update_balance_sheet(self):
+        """모든 종목의 재무상태표 업데이트"""
         stock = self.read_all_stock()
         for idx in range(len(stock)):
             code = stock['code'].values[idx]
@@ -410,6 +414,8 @@ class DBUpdater:
 
         # 수집할 인덱스 값 미리 설정함
         idx = [1, 2, 3, 4, 39, 70, 75, 76, 84, 85, 99, 113, 121, 122, 134, 145, 153, 154, 155, 156, 157, 158]
+        if len(cf_a) - 1 != 158:
+            return None
         for item, i in zip(items_en, idx):
             temps = []
             for j in range(0, num_col):
@@ -441,15 +447,17 @@ class DBUpdater:
         return cf_domestic
 
     def replace_into_krx_cash_flow_db(self, CF):
+        """현금흐름표 DB에 업데이트"""
         try:
             with self.engine.connect() as conn:
                 for r in CF.itertuples():
                     sql = f"REPLACE INTO krx_cash_flow VALUES " \
-                          f"('{r.stock_code}', '{r.period}', {r.assets_total}, {r.current_assets_total}," \
-                          f"{r.lt_assets_total}, {r.other_fin_assets}, {r.liabilities_total}, {r.current_liab_total}," \
-                          f"{r.lt_liab_total}, {r.other_fin_liab_total}, {r.equity_fin_liab_total}, {r.equity_total}," \
-                          f"{r.paid_in_capital}, {r.contingent_convertible_bonds}, {r.capital_surplus}, {r.other_equity}," \
-                          f"{r.accum_other_comprehensive_income}, {r.retained_earnings}, {r.rpt_type} )"
+                          f"('{r.stock_code}', '{r.period}', {r.CFO_Total}, {r.Net_Income_Total}, {r.Cont_Biz_Before_Tax}," \
+                          f"{r.Add_Exp_WO_CF_Out}, {r.Ded_Rev_WO_CF_In}, {r.Chg_Working_Capital}, {r.CFO}, {r.Other_CFO}," \
+                          f"{r.CFI_Total}, {r.CFI_In}, {r.CFI_Out}, {r.Other_CFI}, {r.CFF_Total}, {r.CFF_In}, {r.CFF_Out}," \
+                          f"{r.Other_CFF}, {r.Other_CF}, {r.Chg_CF_Consolidation}, {r.Forex_Effect}, " \
+                          f"{r.Chg_Cash_and_Cash_Equivalents}, {r.Cash_and_Cash_Equivalents_Beg}, " \
+                          f"{r.Cash_and_Cash_Equivalents_End}, '{r.rpt_type}')"
                     conn.execute(sql)
                     print(f"[#{r.stock_code}] Update [{r.rpt_type}] Cash Flow [{r.period}] Successfully!")
         except Exception as e:
@@ -457,8 +465,9 @@ class DBUpdater:
             return None
 
     def update_cash_flow(self):
+        """모든 종목의 현금흐름표 업데이트"""
         stock = self.read_all_stock()
-        for idx in range(len(stock)):
+        for idx in range(1417, len(stock)):
             code = stock['code'].values[idx]
             CF1 = self.getCashFlow(code, 'Consolidated', 'A')  # 연결 연간
             if CF1 is not None:
