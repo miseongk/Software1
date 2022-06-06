@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine
 import json
 import pandas as pd
-from datetime import datetime
+
+from DBUpdater import DBUpdater
 
 
 class GetData:
@@ -17,10 +18,36 @@ class GetData:
         """소멸자: DB 연결 해제"""
         self.engine.dispose()
 
-    def get_is(self, stock_code, period):
+    def read_all_stock_code(self):
+        """상장 종목 코드 가져오기"""
+        dbu = DBUpdater()
+        dbu.update_comp_info()
+        sql = "SELECT code, company FROM company_info"
+        stock = pd.read_sql_query(sql, self.engine)
+
+        return stock
+
+    def get_is(self, stock_code=None, period=None):
+        """손익계산서 가져오는 함수
+        Parameters
+        ==========
+        stock_code: str, 종목 코드
+            default: None (모든 종목 가져옴)
+        period: str, 분기 (ex) '2022Q1'
+            default: None (모든 분기 가져옴)
+        """
         with self.engine.connect() as conn:
-            sql = "SELECT * FROM krx_income_statement WHERE stock_code='{}' AND period='{}' " \
-                  "AND rpt_type='Consolidated_Q'".format(stock_code, period)
+            if stock_code is None and period is None:
+                sql = "SELECT * FROM krx_income_statement WHERE rpt_type='Consolidated_Q'"
+            elif stock_code is None :
+                sql = "SELECT * FROM krx_income_statement WHERE period='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(period)
+            elif period is None:
+                sql = "SELECT * FROM krx_income_statement WHERE stock_code='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(stock_code)
+            else:
+                sql = "SELECT * FROM krx_income_statement WHERE stock_code='{}' AND period='{}' " \
+                    "AND rpt_type='Consolidated_Q'".format(stock_code, period)
             df_is = pd.read_sql_query(sql, conn)
 
         df_is = df_is.rename(columns={
@@ -51,10 +78,27 @@ class GetData:
 
         return df_is
 
-    def get_bs(self, stock_code, period):
+    def get_bs(self, stock_code=None, period=None):
+        """재무상태표 가져오는 함수
+        Parameters
+        ==========
+        stock_code: str, 종목 코드
+            default: None (모든 종목 가져옴)
+        period: str, 분기 (ex) '2022Q1'
+            default: None (모든 분기 가져옴)
+        """
         with self.engine.connect() as conn:
-            sql = "SELECT * FROM krx_balance_sheet WHERE stock_code='{}' AND period='{}' " \
-                  "AND rpt_type='Consolidated_Q'".format(stock_code, period)
+            if stock_code is None and period is None:
+                sql = "SELECT * FROM krx_balance_sheet WHERE rpt_type='Consolidated_Q'"
+            elif stock_code is None :
+                sql = "SELECT * FROM krx_balance_sheet WHERE period='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(period)
+            elif period is None:
+                sql = "SELECT * FROM krx_balance_sheet WHERE stock_code='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(stock_code)
+            else:
+                sql = "SELECT * FROM krx_balance_sheet WHERE stock_code='{}' AND period='{}' " \
+                    "AND rpt_type='Consolidated_Q'".format(stock_code, period)
             df_bs = pd.read_sql_query(sql, conn)
 
         df_bs = df_bs.rename(columns={
@@ -83,10 +127,27 @@ class GetData:
 
         return df_bs
 
-    def get_cf(self, stock_code, period):
+    def get_cf(self, stock_code=None, period=None):
+        """현금흐름표 가져오는 함수
+        Parameters
+        ==========
+        stock_code: str, 종목 코드
+            default: None (모든 종목 가져옴)
+        period: str, 분기 (ex) '2022Q1'
+            default: None (모든 분기 가져옴)
+        """
         with self.engine.connect() as conn:
-            sql = "SELECT * FROM krx_cash_flow WHERE stock_code='{}' AND period='{}' " \
-                  "AND rpt_type='Consolidated_Q'".format(stock_code, period)
+            if stock_code is None and period is None:
+                sql = "SELECT * FROM krx_cash_flow WHERE rpt_type='Consolidated_Q'"
+            elif stock_code is None :
+                sql = "SELECT * FROM krx_cash_flow WHERE period='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(period)
+            elif period is None:
+                sql = "SELECT * FROM krx_cash_flow WHERE stock_code='{}' " \
+                      "AND rpt_type='Consolidated_Q'".format(stock_code)
+            else:
+                sql = "SELECT * FROM krx_cash_flow WHERE stock_code='{}' AND period='{}' " \
+                    "AND rpt_type='Consolidated_Q'".format(stock_code, period)
             df_cf = pd.read_sql_query(sql, conn)
 
         df_cf = df_cf.rename(columns={
