@@ -11,8 +11,6 @@ class StockExtraction:
         ==========
         period: str, 분기 (ex) '2022Q1'
         """
-        df_factor = pd.DataFrame()
-
         if period[5] == '1':  # 1분기
             period = period[0:4] + '/03'
         elif period[5] == '2':  # 2분기
@@ -24,6 +22,7 @@ class StockExtraction:
 
         gd = GetData()
         gd.read_all_stock_code()
+        df_factor = pd.DataFrame()
         df_is = pd.DataFrame(gd.get_is(period=period))
         df_bs = pd.DataFrame(gd.get_bs(period=period))
         df_cf = pd.DataFrame(gd.get_cf(period=period))

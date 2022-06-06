@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 import json
 import pandas as pd
+import numpy as np
 
 from DBUpdater import DBUpdater
 
@@ -26,6 +27,75 @@ class GetData:
         stock = pd.read_sql_query(sql, self.engine)
 
         return stock
+
+    def get_price(self, term, stock_code=None):
+        """주가데이터 가져오는 함수
+        Parameters
+        ==========
+        term: str, 분기 (ex) '2022Q1'
+        stock_code: str, 종목 코드
+            default: None (모든 종목 가져옴)
+        """
+        if term[5] == '1':  # 1분기 (1월~3월)
+            start_date = term[0:4] + '-01-01'
+            end_date = term[0:4] + '-03-31'
+            period = term[0:4] + '/03'
+
+        elif term[5] == '2':  # 2분기 (4월~6월)
+            start_date = term[0:4] + '-04-01'
+            end_date = term[0:4] + '-06-30'
+            period = term[0:4] + '/06'
+
+        elif term[5] == '3':  # 3분기 (7월~9월)
+            start_date = term[0:4] + '-07-01'
+            end_date = term[0:4] + '-09-30'
+            period = term[0:4] + '/09'
+
+        elif term[5] == '4':  # 4분기 (10월~12월)
+            start_date = term[0:4] + '-10-01'
+            end_date = term[0:4] + '-12-31'
+            period = term[0:4] + '/12'
+
+        with self.engine.connect() as conn:
+            if stock_code is None:
+                sql = "SELECT * FROM daily_price WHERE date BETWEEN '{}' AND '{}'".format(start_date, end_date)
+            else:
+                sql = "SELECT * FROM daily_price WHERE stock_code='{}'" \
+                      "date BETWEEN '{}' AND '{}'".format(stock_code, start_date, end_date)
+            df = pd.read_sql_query(sql, conn)
+
+        # 결측치 처리
+        df[['open', 'high', 'low', 'close']] = df[['open', 'high', 'low', 'close']].replace(0, np.nan)
+
+        df['open'] = np.where(pd.notnull(df['open']) is True, df['open'], df['close'])
+        df['high'] = np.where(pd.notnull(df['high']) is True, df['high'], df['close'])
+        df['low'] = np.where(pd.notnull(df['low']) is True, df['low'], df['close'])
+        df['close'] = np.where(pd.notnull(df['close']) is True, df['close'], df['close'])
+
+        # stock_code 별로 통계 모으기    `
+        groups = df.groupby('code')
+
+        df_ohlc = pd.DataFrame()
+        df_ohlc['high'] = groups.max()['high']  # 분기별 고가
+        df_ohlc['low'] = groups.min()['low']  # 분기별 저가
+        df_ohlc['period'] = period  # 분기 이름 설정
+        df_ohlc['open'], df_ohlc['close'], df_ohlc['volume'] = np.nan, np.nan, np.nan
+        # df_ohlc['시가총액'], df_ohlc['상장주식수'] = np.nan, np.nan
+
+        df_ohlc['code'] = df_ohlc.index
+        df_ohlc = df_ohlc.reset_index(drop=True)
+
+        for i in range(len(df_ohlc)):
+            df_ohlc['open'][i] = float(df[df['code'] == df_ohlc['code'][i]].head(1)['open'])  # 분기별 시가
+            df_ohlc['close'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['close'])  # 분기별 저가
+            df_ohlc['volume'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['volume'])  # 분기별 거래량
+            # df_ohlc['시가총액'][i] = float(df[df['stock_code'] == df_ohlc['stock_code'][i]].tail(1)['MKTCAP'])  # 분기별 시가총액
+            # df_ohlc['상장주식수'][i] = float(
+            #     df[df['stock_code'] == df_ohlc['stock_code'][i]].tail(1)['LIST_SHRS'])  # 분기별 상장주식수
+
+        df_ohlc = df_ohlc[['code', 'period', 'open', 'high', 'low', 'close', 'volume']]
+
+        return df_ohlc
 
     def get_is(self, stock_code=None, period=None):
         """손익계산서 가져오는 함수
@@ -206,6 +276,9 @@ if __name__ == '__main__':
     df.set_index('stock_code')
     pd.set_option('display.max_rows', None, 'display.max_columns', None,
                   'display.width', None, 'display.max_colwidth', None)
+    print(df)
+
+    df = data.get_price('2022Q2')
     print(df)
 
 
