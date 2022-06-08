@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import FinanceDataReader as fdr
 from datetime import datetime
+import requests
 import numpy as np
 from bs4 import BeautifulSoup
 from urllib.request import urlopen, Request
@@ -65,6 +66,13 @@ class DBUpdater:
 
         return stock
 
+    def get_price_by_date(self, date):
+        """특정 날짜로 DB에서 시세 가져오기"""
+        sql = f"SELECT * FROM daily_price WHERE date = '{date}'"
+        price = pd.read_sql_query(sql, self.engine)
+
+        return price
+
     def replace_into_daily_price_db(self, code, company, start, end):
         """주식 시세를 읽어서 DB에 업데이트"""
         daily = pd.DataFrame()
@@ -72,16 +80,70 @@ class DBUpdater:
         ohlcv['Code'] = code
         ohlcv['Name'] = company
         daily = pd.concat([daily, ohlcv])
-        daily.dropna()
+        daily = daily.dropna()
         if len(daily) == 0:
             return
         with self.engine.connect() as conn:
             for r in daily.itertuples():
-                sql = f"REPLACE INTO daily_price VALUES " \
-                      f"({r.Open}, {r.High}, {r.Low}, {r.Close}, {r.Volume}, {r.Change}," \
-                      f" '{code}', '{company}', '{r.Index.date()}')"
+                sql = f"REPLACE INTO daily_price (open, high, low, close, volume, change_, code, name, date)" \
+                      f"VALUES ({r.Open}, {r.High}, {r.Low}, {r.Close}, {r.Volume}, {r.Change}," \
+                      f" '{r.Code}', '{r.Name}', '{r.Index.date()}')"
                 conn.execute(sql)
             print(f"[#{code}] Update daily price between [{start}] and [{end}] Successfully!")
+
+    def replace_into_daily_price_db_extra_data(self, date):
+        """모든 종목의 시가총액과 상장주식수를 krx에서 읽어와 DB에 추가로 업데이트
+        Parameters
+        ==========
+        date: str, 날짜 (ex) '2022-06-08'
+        """
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/101.0.4951.64 Safari/537.36',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+        p_data = {
+            'bld': 'dbms/MDC/STAT/standard/MDCSTAT01501',
+            'locale': 'ko_KR',
+            'mktId': 'ALL',
+            'trdDd': date.replace('-', ''),
+            'share': '1',
+            'money': '1',
+            'csvxls_isNo': 'false',
+        }
+        url = 'http://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd'
+        res = requests.post(url, headers=headers, data=p_data)
+        html_json = json.loads(res.content)
+        html_json = html_json['OutBlock_1']
+
+        name_hs = pd.DataFrame()
+        if len(html_json) > 0:
+            name_h = []
+            for i in range(len(html_json)):
+                if html_json[i]['TDD_OPNPRC'] == '-':  # 시장이 열리지 않아 값이 없는 경우
+                    continue
+                ISU_SRT_CD = html_json[i]['ISU_SRT_CD']
+                MKTCAP = int(html_json[i]['MKTCAP'].replace(',', ''))
+                LIST_SHRS = int(html_json[i]['LIST_SHRS'].replace(',', ''))
+                name_h.append((ISU_SRT_CD, MKTCAP, LIST_SHRS))
+
+            name_h = pd.DataFrame(name_h, columns=['code', 'mktcap', 'list_shrs'])
+            name_hs = name_hs.append(name_h, ignore_index=True)
+        else:
+            pass
+        name_hs = name_hs.sort_values(by=['code'], axis=0)
+        stock = self.get_price_by_date(date)
+        stock = stock.drop(['mktcap', 'list_shrs'], axis=1)
+        result = pd.merge(stock, name_hs, left_on='code', right_on='code')
+
+        with self.engine.connect() as conn:
+            for r in result.itertuples():
+                sql = f"REPLACE INTO daily_price (open, high, low, close, volume, change_, mktcap, list_shrs, " \
+                      f"code, name, date)" \
+                      f"VALUES ({r.open}, {r.high}, {r.low}, {r.close}, {r.volume}, {r.change_}, " \
+                      f"{r.mktcap}, {r.list_shrs}, '{r.code}', '{r.name}', '{r.date}')"
+                conn.execute(sql)
+            print(f"[{date}] Update mktcap and list_shrs in daily price Successfully!")
 
     def update_daily_price(self, start, end):
         """일정 기간 동안의 주식 시세를 업데이트"""
@@ -487,4 +549,6 @@ if __name__ == '__main__':
     dbu = DBUpdater()
     # dbu.update_income_statement()
     # dbu.update_balance_sheet()
-    dbu.update_cash_flow()
+    # dbu.update_cash_flow()
+    # dbu.update_daily_price('2021-01-01', '2021-12-31')
+    dbu.replace_into_daily_price_db_extra_data('2022-06-08')

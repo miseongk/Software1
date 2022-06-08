@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS daily_price (
     close BIGINT,
     volume BIGINT,
     change_ FLOAT,
+    mktcap BIGINT,
+    list_shrs BIGINT,
     code VARCHAR(10),
     name TEXT,
     date DATE
