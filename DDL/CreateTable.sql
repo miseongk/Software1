@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS daily_price (
     list_shrs BIGINT,
     code VARCHAR(10),
     name TEXT,
-    date DATE
+    date DATE,
+    PRIMARY KEY (code, date)
 );
 
 CREATE TABLE IF NOT EXISTS krx_income_statement (

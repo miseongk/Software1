@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 import json
 import pandas as pd
 import FinanceDataReader as fdr
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import numpy as np
 from bs4 import BeautifulSoup
@@ -91,59 +91,85 @@ class DBUpdater:
                 conn.execute(sql)
             print(f"[#{code}] Update daily price between [{start}] and [{end}] Successfully!")
 
-    def replace_into_daily_price_db_extra_data(self, date):
+    def replace_into_daily_price_db_extra_data(self, start, end):
         """모든 종목의 시가총액과 상장주식수를 krx에서 읽어와 DB에 추가로 업데이트
         Parameters
         ==========
-        date: str, 날짜 (ex) '2022-06-08'
+        start: str, 시작 날짜 (ex) '2022-01-01'
+        end: str, 종료 날짜 (ex) '2022-06-08'
         """
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) '
-                          'Chrome/101.0.4951.64 Safari/537.36',
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-        p_data = {
-            'bld': 'dbms/MDC/STAT/standard/MDCSTAT01501',
-            'locale': 'ko_KR',
-            'mktId': 'ALL',
-            'trdDd': date.replace('-', ''),
-            'share': '1',
-            'money': '1',
-            'csvxls_isNo': 'false',
-        }
-        url = 'http://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd'
-        res = requests.post(url, headers=headers, data=p_data)
-        html_json = json.loads(res.content)
-        html_json = html_json['OutBlock_1']
+        # 수집 기간 설정
+        sdate = datetime.strptime(start.replace('-', ''), '%Y%m%d').date()
+        edate = datetime.strptime(end.replace('-', ''), '%Y%m%d').date()
+        dt_idx = []
+        for dt in self.get_date_range(sdate, edate):
+            if dt.isoweekday() < 6:
+                dt_idx.append(dt.strftime("%Y%m%d"))
+        # 수집 기간 동안 반복
+        for dt in dt_idx:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) '
+                              'Chrome/101.0.4951.64 Safari/537.36',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+            p_data = {
+                'bld': 'dbms/MDC/STAT/standard/MDCSTAT01501',
+                'locale': 'ko_KR',
+                'mktId': 'ALL',
+                'trdDd': dt,
+                'share': '1',
+                'money': '1',
+                'csvxls_isNo': 'false',
+            }
+            url = 'http://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd'
+            # krx에서 데이터 가져옴
+            res = requests.post(url, headers=headers, data=p_data)
+            html_json = json.loads(res.content)
+            html_json = html_json['OutBlock_1']
 
-        name_hs = pd.DataFrame()
-        if len(html_json) > 0:
-            name_h = []
-            for i in range(len(html_json)):
-                if html_json[i]['TDD_OPNPRC'] == '-':  # 시장이 열리지 않아 값이 없는 경우
-                    continue
-                ISU_SRT_CD = html_json[i]['ISU_SRT_CD']
-                MKTCAP = int(html_json[i]['MKTCAP'].replace(',', ''))
-                LIST_SHRS = int(html_json[i]['LIST_SHRS'].replace(',', ''))
-                name_h.append((ISU_SRT_CD, MKTCAP, LIST_SHRS))
+            name_hs = pd.DataFrame()
+            if len(html_json) > 0:
+                name_h = []
+                for i in range(len(html_json)):
+                    if html_json[i]['TDD_OPNPRC'] == '-':  # 시장이 열리지 않아 값이 없는 경우
+                        continue
+                    # 종목코드, 시가총액, 상장주식수만 뽑아냄
+                    ISU_SRT_CD = html_json[i]['ISU_SRT_CD']
+                    MKTCAP = int(html_json[i]['MKTCAP'].replace(',', ''))
+                    LIST_SHRS = int(html_json[i]['LIST_SHRS'].replace(',', ''))
+                    name_h.append((ISU_SRT_CD, MKTCAP, LIST_SHRS))
 
-            name_h = pd.DataFrame(name_h, columns=['code', 'mktcap', 'list_shrs'])
-            name_hs = name_hs.append(name_h, ignore_index=True)
-        else:
-            pass
-        name_hs = name_hs.sort_values(by=['code'], axis=0)
-        stock = self.get_price_by_date(date)
-        stock = stock.drop(['mktcap', 'list_shrs'], axis=1)
-        result = pd.merge(stock, name_hs, left_on='code', right_on='code')
+                name_h = pd.DataFrame(name_h, columns=['code', 'mktcap', 'list_shrs'])
+                name_hs = pd.concat([name_hs, name_h], ignore_index=True)
+            else:
+                pass
+            name_hs = name_hs.sort_values(by=['code'], axis=0)
+            date = dt[0:4] + '-' + dt[4:6] + '-' + dt[6:8]
+            # DB에 수집된 종목 시세 가져오기
+            stock = self.get_price_by_date(date)
+            stock = stock.drop(['mktcap', 'list_shrs'], axis=1)
+            # krx에서 가져온 정보를 수집된 종목에 합침
+            result = pd.merge(stock, name_hs, left_on='code', right_on='code')
 
-        with self.engine.connect() as conn:
-            for r in result.itertuples():
-                sql = f"REPLACE INTO daily_price (open, high, low, close, volume, change_, mktcap, list_shrs, " \
-                      f"code, name, date)" \
-                      f"VALUES ({r.open}, {r.high}, {r.low}, {r.close}, {r.volume}, {r.change_}, " \
-                      f"{r.mktcap}, {r.list_shrs}, '{r.code}', '{r.name}', '{r.date}')"
-                conn.execute(sql)
-            print(f"[{date}] Update mktcap and list_shrs in daily price Successfully!")
+            # DB에 업데이트
+            with self.engine.connect() as conn:
+                for r in result.itertuples():
+                    sql = f"REPLACE INTO daily_price (open, high, low, close, volume, change_, mktcap, list_shrs, " \
+                          f"code, name, date)" \
+                          f"VALUES ({r.open}, {r.high}, {r.low}, {r.close}, {r.volume}, {r.change_}, " \
+                          f"{r.mktcap}, {r.list_shrs}, '{r.code}', '{r.name}', '{r.date}')"
+                    conn.execute(sql)
+                print(f"[{date}] Update mktcap and list_shrs in daily price Successfully!")
+
+    def get_date_range(self, st_date, end_date):
+        """시작 날짜부터 종료 날짜 사이의 날짜를 하루씩 반환하는 함수
+        Parameters
+        ==========
+        st_date: str, 시작 날짜 (ex) '20220101'
+        end_date: str, 종료 날짜 (ex) '20220608'
+        """
+        for n in range(int((end_date - st_date).days) + 1):
+            yield st_date + timedelta(days=n)
 
     def update_daily_price(self, start, end):
         """일정 기간 동안의 주식 시세를 업데이트"""
@@ -550,5 +576,5 @@ if __name__ == '__main__':
     # dbu.update_income_statement()
     # dbu.update_balance_sheet()
     # dbu.update_cash_flow()
-    # dbu.update_daily_price('2021-01-01', '2021-12-31')
-    dbu.replace_into_daily_price_db_extra_data('2022-06-08')
+    # dbu.update_daily_price('2018-01-01', '2018-12-31')
+    dbu.replace_into_daily_price_db_extra_data('2018-01-01', '2018-12-31')
