@@ -72,7 +72,7 @@ class GetData:
         df['low'] = np.where(pd.notnull(df['low']) is True, df['low'], df['close'])
         df['close'] = np.where(pd.notnull(df['close']) is True, df['close'], df['close'])
 
-        # stock_code 별로 통계 모으기    `
+        # stock_code 별로 통계 모으기
         groups = df.groupby('code')
 
         df_ohlc = pd.DataFrame()
@@ -80,20 +80,20 @@ class GetData:
         df_ohlc['low'] = groups.min()['low']  # 분기별 저가
         df_ohlc['period'] = period  # 분기 이름 설정
         df_ohlc['open'], df_ohlc['close'], df_ohlc['volume'] = np.nan, np.nan, np.nan
-        # df_ohlc['시가총액'], df_ohlc['상장주식수'] = np.nan, np.nan
+        df_ohlc['mktcap'], df_ohlc['list_shrs'] = np.nan, np.nan
 
         df_ohlc['code'] = df_ohlc.index
         df_ohlc = df_ohlc.reset_index(drop=True)
 
         for i in range(len(df_ohlc)):
             df_ohlc['open'][i] = float(df[df['code'] == df_ohlc['code'][i]].head(1)['open'])  # 분기별 시가
-            df_ohlc['close'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['close'])  # 분기별 저가
+            df_ohlc['close'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['close'])  # 분기별 종가
             df_ohlc['volume'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['volume'])  # 분기별 거래량
-            # df_ohlc['시가총액'][i] = float(df[df['stock_code'] == df_ohlc['stock_code'][i]].tail(1)['MKTCAP'])  # 분기별 시가총액
-            # df_ohlc['상장주식수'][i] = float(
-            #     df[df['stock_code'] == df_ohlc['stock_code'][i]].tail(1)['LIST_SHRS'])  # 분기별 상장주식수
+            df_ohlc['mktcap'][i] = float(df[df['code'] == df_ohlc['code'][i]].tail(1)['mktcap'])  # 분기별 시가총액
+            df_ohlc['list_shrs'][i] = float(
+                df[df['code'] == df_ohlc['code'][i]].tail(1)['list_shrs'])  # 분기별 상장주식수
 
-        df_ohlc = df_ohlc[['code', 'period', 'open', 'high', 'low', 'close', 'volume']]
+        df_ohlc = df_ohlc[['code', 'period', 'open', 'high', 'low', 'close', 'volume', 'mktcap', 'list_shrs']]
 
         return df_ohlc
 
@@ -326,7 +326,8 @@ if __name__ == '__main__':
     # df = data.get_price('2022Q2')
     # print(df)
 
-    print(data.get_trailing('2022/03'))
+    #print(data.get_trailing('2022/03'))
+    print(data.get_price('2022Q1'))
 
 
 

@@ -11,6 +11,7 @@ class StockExtraction:
         ==========
         period: str, 분기 (ex) '2022Q1'
         """
+        period_q = period
         if period[5] == '1':  # 1분기
             period = period[0:4] + '/03'
         elif period[5] == '2':  # 2분기
@@ -23,18 +24,26 @@ class StockExtraction:
         gd = GetData()
         gd.read_all_stock_code()
         df_factor = pd.DataFrame()
-        # df_is = pd.DataFrame(gd.get_is(period=period))
-        # df_bs = pd.DataFrame(gd.get_bs(period=period))
-        # df_cf = pd.DataFrame(gd.get_cf(period=period))
         df_trailing = pd.DataFrame(gd.get_trailing(period=period))
+        df_price = pd.DataFrame(gd.get_price(term=period_q))
+        df = pd.merge(df_trailing, df_price, left_on='stock_code', right_on='code')
 
-        df_factor[['stock_code', 'period']] = df_trailing[['stock_code', 'period']]
-        # df_factor['EPS'] = df_is['당기순이익'] / '상장주식수'
+        fin_unit = 100000000
+        df_factor[['stock_code', 'period']] = df[['stock_code', 'period_x']]
+        df_factor['당기순이익'] = df['당기순이익']
+        df_factor['list_shrs'] = df['list_shrs']
+        df_factor['close'] = df['close']
+        df_factor['EPS'] = (df['당기순이익'] * fin_unit) / df['list_shrs']
+        df_factor['PER'] = df['close'] / df_factor['EPS']
+        df_factor['BPS'] = (df['자본'] * fin_unit) / df['list_shrs']
+        df_factor['PBR'] = df['close'] / df_factor['BPS']
 
         return df_factor
 
 
 if __name__ == '__main__':
     se = StockExtraction()
+    pd.set_option('display.max_rows', None, 'display.max_columns', None,
+                  'display.width', None, 'display.max_colwidth', None)
     df_factor = se.make_factor('2022Q1')
     print(df_factor)
