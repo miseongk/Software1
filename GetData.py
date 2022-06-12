@@ -294,6 +294,7 @@ class GetData:
             df_quat[i] = pd.merge(df_quat[i], df_trailing, on='stock_code')
         df_quat[4] = pd.DataFrame()
         df_quat[4]['stock_code'] = df_quat[0]['stock_code']
+        df_quat[4]['period'] = df_quat[0]['period']
         df_quat[4][df_quat[0].columns[2:-4]] = 0
 
         for i in range(len(df_quat)-1):

@@ -23,11 +23,12 @@ class StockExtraction:
         gd = GetData()
         gd.read_all_stock_code()
         df_factor = pd.DataFrame()
-        df_is = pd.DataFrame(gd.get_is(period=period))
-        df_bs = pd.DataFrame(gd.get_bs(period=period))
-        df_cf = pd.DataFrame(gd.get_cf(period=period))
+        # df_is = pd.DataFrame(gd.get_is(period=period))
+        # df_bs = pd.DataFrame(gd.get_bs(period=period))
+        # df_cf = pd.DataFrame(gd.get_cf(period=period))
+        df_trailing = pd.DataFrame(gd.get_trailing(period=period))
 
-        df_factor[['stock_code', 'period']] = df_is[['stock_code', 'period']]
+        df_factor[['stock_code', 'period']] = df_trailing[['stock_code', 'period']]
         # df_factor['EPS'] = df_is['당기순이익'] / '상장주식수'
 
         return df_factor
@@ -35,5 +36,5 @@ class StockExtraction:
 
 if __name__ == '__main__':
     se = StockExtraction()
-    df_factor = se.make_factor('2021Q4')
+    df_factor = se.make_factor('2022Q1')
     print(df_factor)
