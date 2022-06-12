@@ -257,29 +257,75 @@ class GetData:
 
         return df_cf
 
+    def get_trailing(self, period):
+        df_quat = {}
+        period_quat = period
+
+        for i in range(4):
+            print(period_quat, end=" ")
+            df_is = self.get_is(period=period_quat)  # 포괄손익계산서
+            df_bs = self.get_bs(period=period_quat)  # 재무상태표
+            df_cf = self.get_cf(period=period_quat)  # 현금흐름표
+
+            df_is = df_is.drop(['rpt_type'], axis=1)
+            df_bs = df_bs.drop(['rpt_type'], axis=1)
+            df_cf = df_cf.drop(['rpt_type'], axis=1)
+
+            df_merge = pd.merge(df_is, df_bs, how='left', on=['stock_code', 'period'])
+            df_merge = pd.merge(df_merge, df_cf, how='left', on=['stock_code', 'period'])
+
+            df_quat[i] = df_merge
+
+            if int(period_quat[5:7]) - 3 > 0:
+                period_quat = period_quat[0:4] + '/' + str(int(period_quat[5:7]) - 3).zfill(2)
+
+            else:
+                period_quat = str(int(period_quat[0:4]) - 1) + '/12'
+        print()
+        df1 = pd.DataFrame(df_quat[0], columns=['stock_code', 'period'])
+        df2 = pd.DataFrame(df_quat[1], columns=['stock_code', 'period'])
+        df3 = pd.DataFrame(df_quat[2], columns=['stock_code', 'period'])
+        df4 = pd.DataFrame(df_quat[3], columns=['stock_code', 'period'])
+        df_trailing1 = pd.merge(df1, df2, on='stock_code')
+        df_trailing2 = pd.merge(df4, df3, on='stock_code')
+        df_trailing = pd.merge(df_trailing1, df_trailing2, on='stock_code')
+
+        for i in range(len(df_quat)):
+            df_quat[i] = pd.merge(df_quat[i], df_trailing, on='stock_code')
+        df_quat[4] = pd.DataFrame()
+        df_quat[4]['stock_code'] = df_quat[0]['stock_code']
+        df_quat[4][df_quat[0].columns[2:-4]] = 0
+
+        for i in range(len(df_quat)-1):
+            df_quat[4][df_quat[0].columns[2:-4]] += df_quat[i][df_quat[i].columns[2:-4]]
+
+        return df_quat[4]
+
 
 if __name__ == '__main__':
     data = GetData()
-    df = pd.DataFrame(data.get_is('005930', '2022/03'))
-    df.set_index('stock_code')
-    pd.set_option('display.max_rows', None, 'display.max_columns', None,
-                  'display.width', None, 'display.max_colwidth', None)
-    print(df)
+    # df = pd.DataFrame(data.get_is('005930', '2022/03'))
+    # df.set_index('stock_code')
+    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
+    #               'display.width', None, 'display.max_colwidth', None)
+    # print(df)
+    #
+    # df = pd.DataFrame(data.get_bs('005930', '2022/03'))
+    # df.set_index('stock_code')
+    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
+    #               'display.width', None, 'display.max_colwidth', None)
+    # print(df)
+    #
+    # df = pd.DataFrame(data.get_cf('005930', '2022/03'))
+    # df.set_index('stock_code')
+    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
+    #               'display.width', None, 'display.max_colwidth', None)
+    # print(df)
+    #
+    # df = data.get_price('2022Q2')
+    # print(df)
 
-    df = pd.DataFrame(data.get_bs('005930', '2022/03'))
-    df.set_index('stock_code')
-    pd.set_option('display.max_rows', None, 'display.max_columns', None,
-                  'display.width', None, 'display.max_colwidth', None)
-    print(df)
-
-    df = pd.DataFrame(data.get_cf('005930', '2022/03'))
-    df.set_index('stock_code')
-    pd.set_option('display.max_rows', None, 'display.max_columns', None,
-                  'display.width', None, 'display.max_colwidth', None)
-    print(df)
-
-    df = data.get_price('2022Q2')
-    print(df)
+    print(data.get_trailing('2022/03'))
 
 
 
