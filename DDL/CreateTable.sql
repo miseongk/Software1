@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS krx_income_statement (
     net_income_total FLOAT,
     net_income_controlling FLOAT,
     net_income_noncontrolling FLOAT,
-    rpt_type VARCHAR(20)
+    rpt_type VARCHAR(20),
+    PRIMARY KEY (stock_code, period, rpt_type)
 );
 
 CREATE TABLE IF NOT EXISTS krx_balance_sheet (
@@ -61,7 +62,8 @@ CREATE TABLE IF NOT EXISTS krx_balance_sheet (
     other_equity FLOAT,
     accum_other_comprehensive_income FLOAT,
     retained_earnings FLOAT,
-    rpt_type VARCHAR(20)
+    rpt_type VARCHAR(20),
+    PRIMARY KEY (stock_code, period, rpt_type)
 );
 
 CREATE TABLE IF NOT EXISTS krx_cash_flow (
@@ -89,5 +91,6 @@ CREATE TABLE IF NOT EXISTS krx_cash_flow (
     chg_cash_and_cash_equivalents FLOAT,
     cash_and_cash_equivalents_beg FLOAT,
     cash_and_cash_equivalents_end FLOAT,
-    rpt_type VARCHAR(20)
+    rpt_type VARCHAR(20),
+    PRIMARY KEY (stock_code, period, rpt_type)
 );

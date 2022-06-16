@@ -30,7 +30,7 @@ class StockExtraction:
 
         fin_unit = 100000000
         df_factor[['stock_code', 'period']] = df[['stock_code', 'period_x']]
-        df_factor['당기순이익'] = df['당기순이익']
+        df_factor['mktcap'] = df['mktcap']
         df_factor['list_shrs'] = df['list_shrs']
         df_factor['close'] = df['close']
         df_factor['EPS'] = (df['당기순이익'] * fin_unit) / df['list_shrs']
@@ -40,10 +40,56 @@ class StockExtraction:
 
         return df_factor
 
+    def stock_select(self, df_factor, MKTCAP_top, n, factor_list):
+        """종목 추출 함수
+        Parameters
+        ==========
+        df_factor: pd.DataFrame, 팩터
+        MKTCAP_top: float, 시가총액 상위 퍼센트
+        n: int, 종목 추출 개수
+        factor_list: list, (ex) ['PER', 'PBR']
+        """
+        basic_list = ['stock_code', 'period', 'mktcap']
+
+        basic_list.extend(factor_list)
+
+        df_select = df_factor.copy()
+        df_select = df_select[basic_list]
+
+        df_select['score'] = 0
+
+        # 시가총액 상위 MKTCAP_top% 산출
+        df_select = df_select.sort_values(by=['mktcap'], ascending=False).head(int(len(df_select) * MKTCAP_top))
+        df_select = df_select.dropna()
+
+        # 팩터간의 점수 계산
+        for i in range(len(factor_list)):
+            df_select[factor_list[i] + '_score'] = (df_select[factor_list[i]] - max(df_select[factor_list[i]]))
+            df_select[factor_list[i] + '_score'] = df_select[factor_list[i] + '_score'] / min(
+                df_select[factor_list[i] + '_score'])
+
+            df_select['score'] += (df_select[factor_list[i] + '_score'] / len(factor_list))
+
+        # 상위 n개 종목 추출
+        df_select = df_select.sort_values(by=['score'], ascending=False).head(n)
+
+        # 종목 선택
+        #stock_select = pd.DataFrame(df_select['stock_code'])
+
+        # 회사명 가져오기
+        # data = GetData()
+        # stock = data.read_all_stock_code()
+        stock_select = pd.DataFrame(df_select['stock_code'])
+        # # 종목 선택
+        #stock_select = list(df_select['stock_code'])
+
+        return stock_select
 
 if __name__ == '__main__':
-    se = StockExtraction()
-    pd.set_option('display.max_rows', None, 'display.max_columns', None,
-                  'display.width', None, 'display.max_colwidth', None)
-    df_factor = se.make_factor('2022Q1')
-    print(df_factor)
+    stock = StockExtraction()
+    df_factor = stock.make_factor('2022Q1')
+    MKTCAP_top = 3  # 시가총액 상위 3%
+    n = 30  # 30개 종목 추출
+    factor_list = ['PER', 'PBR']
+    s = stock.stock_select(df_factor, MKTCAP_top, n, factor_list)
+    print(s)

@@ -40,10 +40,12 @@ class DBUpdater:
         for idx in range(len(df)):
             self.codes[df['code'].values[idx]] = df['company'].values[idx]
         with self.engine.connect() as conn:
+            # 가장 최신 업데이트 날짜 가져오기
             sql = "SELECT max(last_update) FROM company_info"
             rs = conn.execute(sql).first()
             today = datetime.today().strftime('%Y-%m-%d')
 
+            # 테이블이 비어있거나 최신 날짜가 오늘보다 이전일 경우 업데이트
             if rs[0] is None or rs[0].strftime('%Y-%m-%d') < today:
                 krx = self.read_krx_code()
                 for idx in range(len(krx)):
@@ -74,8 +76,15 @@ class DBUpdater:
         return price
 
     def replace_into_daily_price_db(self, code, company, start, end):
-        """주식 시세를 읽어서 DB에 업데이트"""
+        """주식 시세를 읽어서 DB에 업데이트
+        Parameters
+        ==========
+        code: str, 종목코드
+        company: str, 회사명
+        start: str, 시작 날짜 (ex) '2022-01-01'
+        end: str, 종료 날짜 (ex) '2022-06-08'"""
         daily = pd.DataFrame()
+        # FDR 패키지로 시세 가져오기
         ohlcv = fdr.DataReader(code, start, end)
         ohlcv['Code'] = code
         ohlcv['Name'] = company
@@ -83,6 +92,7 @@ class DBUpdater:
         daily = daily.dropna()
         if len(daily) == 0:
             return
+        # daily_price 테이블에 저장
         with self.engine.connect() as conn:
             for r in daily.itertuples():
                 sql = f"REPLACE INTO daily_price (open, high, low, close, volume, change_, code, name, date)" \
@@ -172,7 +182,12 @@ class DBUpdater:
             yield st_date + timedelta(days=n)
 
     def update_daily_price(self, start, end):
-        """일정 기간 동안의 주식 시세를 업데이트"""
+        """일정 기간 동안의 주식 시세를 업데이트
+        Parameters
+        ==========
+        start: str, 시작 날짜 (ex) '2022-01-01'
+        end: str, 종료 날짜 (ex) '2022-06-08'
+        """
         stock = self.read_all_stock()
         for idx in range(len(stock)):
             code = stock['code'].values[idx]
@@ -569,12 +584,3 @@ class DBUpdater:
             CF4 = self.getCashFlow(code, 'Unconsolidated', 'Q')  # 별도 분기
             if CF4 is not None:
                 self.replace_into_krx_cash_flow_db(CF4)
-
-
-if __name__ == '__main__':
-    dbu = DBUpdater()
-    # dbu.update_income_statement()
-    # dbu.update_balance_sheet()
-    # dbu.update_cash_flow()
-    # dbu.update_daily_price('2018-01-01', '2018-12-31')
-    dbu.replace_into_daily_price_db_extra_data('2018-01-01', '2018-12-31')

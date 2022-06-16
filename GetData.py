@@ -29,7 +29,7 @@ class GetData:
         return stock
 
     def get_price(self, term, stock_code=None):
-        """주가데이터 가져오는 함수
+        """특정 분기의 주가데이터 가져오는 함수
         Parameters
         ==========
         term: str, 분기 (ex) '2022Q1'
@@ -258,19 +258,27 @@ class GetData:
         return df_cf
 
     def get_trailing(self, period):
+        """트레일링 데이터 가져오는 함수
+        Parameters
+        ==========
+        period: str, 분기 (ex) '2022/03'
+        """
         df_quat = {}
         period_quat = period
 
+        # 분기별로 반복
         for i in range(4):
             print(period_quat, end=" ")
-            df_is = self.get_is(period=period_quat)  # 포괄손익계산서
-            df_bs = self.get_bs(period=period_quat)  # 재무상태표
-            df_cf = self.get_cf(period=period_quat)  # 현금흐름표
+            df_is = self.get_is(period=period_quat)  # 포괄손익계산서 가져오기
+            df_bs = self.get_bs(period=period_quat)  # 재무상태표 가져오기
+            df_cf = self.get_cf(period=period_quat)  # 현금흐름표 가져오기
 
+            # 'rpt_type' 컬럼 제거
             df_is = df_is.drop(['rpt_type'], axis=1)
             df_bs = df_bs.drop(['rpt_type'], axis=1)
             df_cf = df_cf.drop(['rpt_type'], axis=1)
 
+            # 재무제표 모두 합치기
             df_merge = pd.merge(df_is, df_bs, how='left', on=['stock_code', 'period'])
             df_merge = pd.merge(df_merge, df_cf, how='left', on=['stock_code', 'period'])
 
@@ -282,6 +290,7 @@ class GetData:
             else:
                 period_quat = str(int(period_quat[0:4]) - 1) + '/12'
         print()
+        # 모든 분기에 존재하는 종목 코드 뽑아내기
         df1 = pd.DataFrame(df_quat[0], columns=['stock_code', 'period'])
         df2 = pd.DataFrame(df_quat[1], columns=['stock_code', 'period'])
         df3 = pd.DataFrame(df_quat[2], columns=['stock_code', 'period'])
@@ -292,43 +301,14 @@ class GetData:
 
         for i in range(len(df_quat)):
             df_quat[i] = pd.merge(df_quat[i], df_trailing, on='stock_code')
+        # 트레일링 데이터 저장할 데이터 프레임 만들기
         df_quat[4] = pd.DataFrame()
         df_quat[4]['stock_code'] = df_quat[0]['stock_code']
         df_quat[4]['period'] = df_quat[0]['period']
         df_quat[4][df_quat[0].columns[2:-4]] = 0
 
+        # 각 분기 별 행 더하기
         for i in range(len(df_quat)-1):
-            df_quat[4][df_quat[0].columns[2:-4]] += df_quat[i][df_quat[i].columns[2:-4]]
+            df_quat[4][df_quat[0].columns[2:-30]] += df_quat[i][df_quat[i].columns[2:-30]]
 
         return df_quat[4]
-
-
-if __name__ == '__main__':
-    data = GetData()
-    # df = pd.DataFrame(data.get_is('005930', '2022/03'))
-    # df.set_index('stock_code')
-    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
-    #               'display.width', None, 'display.max_colwidth', None)
-    # print(df)
-    #
-    # df = pd.DataFrame(data.get_bs('005930', '2022/03'))
-    # df.set_index('stock_code')
-    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
-    #               'display.width', None, 'display.max_colwidth', None)
-    # print(df)
-    #
-    # df = pd.DataFrame(data.get_cf('005930', '2022/03'))
-    # df.set_index('stock_code')
-    # pd.set_option('display.max_rows', None, 'display.max_columns', None,
-    #               'display.width', None, 'display.max_colwidth', None)
-    # print(df)
-    #
-    # df = data.get_price('2022Q2')
-    # print(df)
-
-    #print(data.get_trailing('2022/03'))
-    print(data.get_price('2022Q1'))
-
-
-
-
