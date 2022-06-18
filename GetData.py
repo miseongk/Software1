@@ -103,7 +103,7 @@ class GetData:
         ==========
         stock_code: str, 종목 코드
             default: None (모든 종목 가져옴)
-        period: str, 분기 (ex) '2022Q1'
+        period: str, 분기 (ex) '2022/03'
             default: None (모든 분기 가져옴)
         """
         with self.engine.connect() as conn:
@@ -154,7 +154,7 @@ class GetData:
         ==========
         stock_code: str, 종목 코드
             default: None (모든 종목 가져옴)
-        period: str, 분기 (ex) '2022Q1'
+        period: str, 분기 (ex) '2022/03'
             default: None (모든 분기 가져옴)
         """
         with self.engine.connect() as conn:
@@ -203,7 +203,7 @@ class GetData:
         ==========
         stock_code: str, 종목 코드
             default: None (모든 종목 가져옴)
-        period: str, 분기 (ex) '2022Q1'
+        period: str, 분기 (ex) '2022/03'
             default: None (모든 분기 가져옴)
         """
         with self.engine.connect() as conn:
@@ -290,6 +290,8 @@ class GetData:
             else:
                 period_quat = str(int(period_quat[0:4]) - 1) + '/12'
         print()
+        print("Please wait for getting trailing data...")
+
         # 모든 분기에 존재하는 종목 코드 뽑아내기
         df1 = pd.DataFrame(df_quat[0], columns=['stock_code', 'period'])
         df2 = pd.DataFrame(df_quat[1], columns=['stock_code', 'period'])

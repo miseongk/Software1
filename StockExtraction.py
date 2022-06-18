@@ -33,10 +33,92 @@ class StockExtraction:
         df_factor['mktcap'] = df['mktcap']
         df_factor['list_shrs'] = df['list_shrs']
         df_factor['close'] = df['close']
+
+        # PER 계산
         df_factor['EPS'] = (df['당기순이익'] * fin_unit) / df['list_shrs']
         df_factor['PER'] = df['close'] / df_factor['EPS']
+
+        # PBR 계산
         df_factor['BPS'] = (df['자본'] * fin_unit) / df['list_shrs']
         df_factor['PBR'] = df['close'] / df_factor['BPS']
+
+        # PSR 계산
+        df_factor['SPS'] = (df['매출액'] * fin_unit) / df['list_shrs']
+        df_factor['PSR'] = df['close'] / df_factor['SPS']
+
+        # PCR 계산
+        df_factor['OCF'] = df['당기순이익'] - df['비지배주주순이익'] + df['현금유출이없는비용등가산']
+        df_factor['CFPS'] = (df_factor['OCF'] * fin_unit) / df['list_shrs']
+        df_factor['PCR'] = df['close'] / df_factor['CFPS']
+
+        # 가치지표 결합하기
+        # 상대점수 설정
+        score = 100 / len(df_factor)
+        # PER이 낮은 순서대로 정렬
+        df_per_sort = df_factor[['stock_code', 'PER']].sort_values(by='PER', ascending=False)
+        df_per_sort = df_per_sort.reset_index(drop=True)
+        # PER이 낮은 순서대로 상대점수 100점부터 0점까지 차등 분배
+        df_per_sort['PER_Score'] = (df_per_sort.index.values + 1) * score
+        # PBR이 낮은 순서대로 정렬
+        df_pbr_sort = df_factor[['stock_code', 'PBR']].sort_values(by='PBR', ascending=False)
+        df_pbr_sort = df_pbr_sort.reset_index(drop=True)
+        # PBR이 낮은 순서대로 상대점수 100점부터 0점까지 차등 분배
+        df_pbr_sort['PBR_Score'] = (df_pbr_sort.index.values + 1) * score
+        # df_factor와 합치기
+        df_factor = pd.merge(df_factor, df_per_sort, left_on=['stock_code', 'PER'], right_on=['stock_code', 'PER'])
+        df_factor = pd.merge(df_factor, df_pbr_sort, left_on=['stock_code', 'PBR'], right_on=['stock_code', 'PBR'])
+        # 가치지표 점수 계산
+        df_factor['Combine_Score_PER_PBR'] = (df_factor['PER_Score'] + df_factor['PBR_Score']) / 2
+
+        # 4대장 콤보
+        # PSR이 낮은 순서대로 정렬
+        df_psr_sort = df_factor[['stock_code', 'PSR']].sort_values(by='PSR', ascending=False)
+        df_psr_sort = df_psr_sort.reset_index(drop=True)
+        # PSR이 낮은 순서대로 상대점수 100점부터 0점까지 차등 분배
+        df_psr_sort['PSR_Score'] = (df_psr_sort.index.values + 1) * score
+        # PCR이 낮은 순서대로 정렬
+        df_pcr_sort = df_factor[['stock_code', 'PCR']].sort_values(by='PCR', ascending=False)
+        df_pcr_sort = df_pcr_sort.reset_index(drop=True)
+        # PCR이 낮은 순서대로 상대점수 100점부터 0점까지 차등 분배
+        df_pcr_sort['PCR_Score'] = (df_pcr_sort.index.values + 1) * score
+        # df_factor와 합치기
+        df_factor = pd.merge(df_factor, df_psr_sort, left_on=['stock_code', 'PSR'], right_on=['stock_code', 'PSR'])
+        df_factor = pd.merge(df_factor, df_pcr_sort, left_on=['stock_code', 'PCR'], right_on=['stock_code', 'PCR'])
+        # 4대장 콤보 점수 계산
+        df_factor['4Combo'] = (df_factor['PER_Score'] + df_factor['PBR_Score']
+                               + df_factor['PSR_Score'] + df_factor['PCR_Score']) / 4
+
+        # 실적 대비 기업가치, EV/EBITDA 계산
+        df_factor['EV'] = df['mktcap'] - df['부채'] + df['기말현금및현금성자산']
+        df_factor['EBITDA'] = df['영업이익'] + df['현금유출이없는비용등가산']
+        df_factor['EV/EBITDA'] = df_factor['EV'] / df_factor['EBITDA']
+
+        # NCAV 계산
+        df_factor['NCAV'] = df['유동자산'] - df['부채']
+        df_factor['Safety_Margin'] = df_factor['NCAV'] - (df['mktcap'] * 1.5)
+
+        # ROA 계산
+        df_factor['ROA'] = df['당기순이익'] / df['자산']
+
+        # ROE 계산
+        df_factor['ROE'] = df['당기순이익'] / df['자본']
+
+        # GP/A 계산
+        df_factor['GP/A'] = df['매출총이익'] / df['자산']
+
+        # 부채 비율 계산
+        df_factor['Liability/Equity'] = df['부채'] / df['자본']
+
+        # 차입금 비율 계산
+        df_factor['Debt/Equity'] = (df['유동부채'] + df['비유동부채']) / df['자본']
+
+        # 회전률 지표 계산
+        df_factor['Assets_Turnover'] = df['매출액'] / df['자산']
+
+        # 이익률 지표 계산
+        df_factor['Gross_Margin'] = df['매출총이익'] / df['매출액']
+        df_factor['Operating_Margin'] = df['영업이익'] / df['매출액']
+        df_factor['Profit_Margin'] = df['당기순이익'] / df['매출액']
 
         return df_factor
 
@@ -73,23 +155,12 @@ class StockExtraction:
         # 상위 n개 종목 추출
         df_select = df_select.sort_values(by=['score'], ascending=False).head(n)
 
-        # 종목 선택
-        #stock_select = pd.DataFrame(df_select['stock_code'])
-
         # 회사명 가져오기
-        # data = GetData()
-        # stock = data.read_all_stock_code()
-        stock_select = pd.DataFrame(df_select['stock_code'])
-        # # 종목 선택
-        #stock_select = list(df_select['stock_code'])
+        data = GetData()
+        stock = data.read_all_stock_code()
+
+        # 종목과 회사명 합쳐서 데이터프레임으로 변환
+        stock_select = pd.merge(df_select['stock_code'], stock, left_on='stock_code', right_on='code')
+        stock_select = stock_select.drop(['code'], axis=1)
 
         return stock_select
-
-if __name__ == '__main__':
-    stock = StockExtraction()
-    df_factor = stock.make_factor('2022Q1')
-    MKTCAP_top = 3  # 시가총액 상위 3%
-    n = 30  # 30개 종목 추출
-    factor_list = ['PER', 'PBR']
-    s = stock.stock_select(df_factor, MKTCAP_top, n, factor_list)
-    print(s)
