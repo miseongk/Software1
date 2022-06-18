@@ -89,13 +89,13 @@ class StockExtraction:
                                + df_factor['PSR_Score'] + df_factor['PCR_Score']) / 4
 
         # 실적 대비 기업가치, EV/EBITDA 계산
-        df_factor['EV'] = df['mktcap'] - df['부채'] + df['기말현금및현금성자산']
+        df_factor['EV'] = df['mktcap'] / fin_unit - df['부채'] + df['기말현금및현금성자산']
         df_factor['EBITDA'] = df['영업이익'] + df['현금유출이없는비용등가산']
         df_factor['EV/EBITDA'] = df_factor['EV'] / df_factor['EBITDA']
 
         # NCAV 계산
         df_factor['NCAV'] = df['유동자산'] - df['부채']
-        df_factor['Safety_Margin'] = df_factor['NCAV'] - (df['mktcap'] * 1.5)
+        df_factor['Safety_Margin'] = df_factor['NCAV'] - (df['mktcap'] / fin_unit * 1.5)
 
         # ROA 계산
         df_factor['ROA'] = df['당기순이익'] / df['자산']

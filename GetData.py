@@ -311,6 +311,6 @@ class GetData:
 
         # 각 분기 별 행 더하기
         for i in range(len(df_quat)-1):
-            df_quat[4][df_quat[0].columns[2:-30]] += df_quat[i][df_quat[i].columns[2:-30]]
+            df_quat[4][df_quat[0].columns[2:-4]] += df_quat[i][df_quat[i].columns[2:-4]]
 
         return df_quat[4]
