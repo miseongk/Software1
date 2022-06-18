@@ -99,7 +99,6 @@ class DBUpdater:
                       f"VALUES ({r.Open}, {r.High}, {r.Low}, {r.Close}, {r.Volume}, {r.Change}," \
                       f" '{r.Code}', '{r.Name}', '{r.Index.date()}')"
                 conn.execute(sql)
-            print(f"[#{code}] Update daily price between [{start}] and [{end}] Successfully!")
 
     def replace_into_daily_price_db_extra_data(self, start, end):
         """모든 종목의 시가총액과 상장주식수를 krx에서 읽어와 DB에 추가로 업데이트
@@ -193,6 +192,7 @@ class DBUpdater:
             code = stock['code'].values[idx]
             company = stock['company'].values[idx]
             self.replace_into_daily_price_db(code, company, start, end)
+        print(f"Update daily price between [{start}] and [{end}] Successfully!")
 
     def getIncomeStatement(self, code, rpt_type, freq):
         """[FnGuide] 공시기업의 최근 4개 연간 및 4개 분기 손익계산서를 수집하는 함수

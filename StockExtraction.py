@@ -6,7 +6,7 @@ from GetData import GetData
 class StockExtraction:
 
     def make_factor(self, period):
-        """특정 분기의 팩터를 만드는 함수 (2021Q2~)
+        """특정 분기의 팩터를 만드는 함수 (2022Q1)
         Parameters
         ==========
         period: str, 분기 (ex) '2022Q1'
